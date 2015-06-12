@@ -45,7 +45,7 @@ if [ -z "$2" ] ; then
 fi
 
 
-for c in 7z xorriso rsync ; do
+for c in xorriso rsync ; do
 	if which $c ; then
 		echo '---> Befehl '${c}' gefunden...'
 	else
@@ -58,8 +58,7 @@ done
 if [ -d build_iso ] ; then
 	echo '===> Ausgabeverzeichnis (ISO) existiert, entpacke nicht!'
 else
-	7z x -obuild_iso "$1" || exit 1 
-	rm -rf 'build_iso/[BOOT]'
+	xorriso -osirrox on -indev "$1" -extract / build_iso/ || exit 1 
 	# Overlay syncen
         [ -d overlay_iso ] && rsync -avHP overlay_iso/ build_iso/
 fi
