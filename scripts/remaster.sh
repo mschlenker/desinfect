@@ -59,6 +59,8 @@ if [ -d build_iso ] ; then
 	echo '===> Ausgabeverzeichnis (ISO) existiert, entpacke nicht!'
 else
 	xorriso -osirrox on -indev "$1" -extract / build_iso/ || exit 1 
+	chmod -R +w build_iso
+	rm -f build_iso/isolinux/boot.cat
 	# Overlay syncen
         [ -d overlay_iso ] && rsync -avHP overlay_iso/ build_iso/
 fi
