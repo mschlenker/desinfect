@@ -1,5 +1,5 @@
 #!/bin/bash
-#
+# encoding: utf-8
 # (c) Mattias Schlenker 2015 für Heise
 #     MIT License http://opensource.org/licenses/MIT 
 #
@@ -18,6 +18,10 @@
 #	extra_debs 	- zusätzliche Debian-Pakete, die im SquashFS 
 # 			  installiert werden sollen, beispielsweise TrueCrypt
 #			  libbde (BitLocker) oder libvshadow
+#
+# Umgebungsvariablen:
+#	
+#	BIOS_ONLY=1	- ISO ohne UEFI-Unterstützung bauen
 #
 # ACHTUNG! Die Installation von Debian-Paketen und die Synchronisierung von 
 # Overlays erfolgt nur beim ersten Entpacken! Falls Änderungen an Overlays 
@@ -133,7 +137,17 @@ mksquashfs build_squash build_iso/casper/filesystem.squashfs || exit 1
 
 # Zeit, das ISO aufzubauen...
 echo '---> Baue ISO...'
-xorriso -as mkisofs -graft-points -c isolinux/boot.cat \
+if [ "$BIOS_ONLY" -gt 0 ] ; then
+	xorriso -as mkisofs -graft-points -c isolinux/boot.cat \
+	-b isolinux/isolinux.bin \
+        -no-emul-boot -boot-info-table -boot-load-size 4 -isohybrid-mbr \
+        build_squash/usr/lib/syslinux/isohdpfx.bin \
+        -V DESINFECT \
+        -o "$2" \
+        -r -J build_iso \
+	--sort-weight 0 / --sort-weight 2 /boot --sort-weight 1 /isolinux
+else
+	xorriso -as mkisofs -graft-points -c isolinux/boot.cat \
 	-b isolinux/isolinux.bin \
         -no-emul-boot -boot-info-table -boot-load-size 4 -isohybrid-mbr \
         build_squash/usr/lib/syslinux/isohdpfx.bin \
@@ -142,4 +156,4 @@ xorriso -as mkisofs -graft-points -c isolinux/boot.cat \
         -o "$2" \
         -r -J build_iso \
 	--sort-weight 0 / --sort-weight 2 /boot --sort-weight 1 /isolinux
-
+fi
