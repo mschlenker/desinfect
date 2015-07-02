@@ -6,6 +6,10 @@
 # Aufruf:
 #	remaster.sh pfad/zu/desinfect-alt-2015.iso pfad/zu/desinfect-neu-2015.iso
 #
+# oder, sinnvoll wenn das build_iso per NFS für PXE-Boot exportiert werden soll:
+#
+#	NOISO=1 NAMESERVER=8.8.8.8 remaster.sh pfad/zu/desinfect-alt-2015.iso
+#
 # Verzeichnisse - werden verwendet, wenn sie in dem Ordner anwesend sind,
 # in dem dieses Script aufgerufen wird:
 #
@@ -21,6 +25,13 @@
 #
 # Umgebungsvariablen:
 #	
+#	NOISO=1		- kein ISO bauen, wenn build_iso direkt für PXE-Boot
+#			  bereitgestellt werden soll
+#
+#	NAMESERVER='8.8.8.8'
+#			- Für PXE-Boot sinnvoll: fixen Nameserver definieren!
+#			  Wird immer vor Aktualisierung der Signaturen gesetzt
+#
 #	BIOS_ONLY=1	- ISO ohne UEFI-Unterstützung bauen
 #
 # ACHTUNG! Die Installation von Debian-Paketen und die Synchronisierung von 
@@ -45,9 +56,12 @@ if [ -z "$1" ] ; then
 fi
 if [ -z "$2" ] ; then
         echo '***> Bitte Pfad zum Desinfect-Output-ISO als zweiten Parameter übergeben!'
-        exit 1 
+	if [ "0${NOISO}" -gt 0 ] ; then
+		echo '***> OK, geht ohne.'
+	else
+		exit 1 
+	fi
 fi
-
 
 for c in xorriso rsync mksquashfs ; do
 	if which $c ; then
@@ -78,6 +92,15 @@ else
 	[ -d extra_debs ] && install_extras=1 
 	# Overlay syncen, enthält möglicherweise neue Lizenzschlüssel, daher zuerst
 	[ -d overlay_squash ] && rsync -avHP overlay_squash/ build_squash/ 
+fi
+
+# Nameserver setzen fals angefordert:
+if [ -n "$NAMESERVER" ] ; then
+	for f in etc/resolv.conf \
+		etc/resolvconf/resolv.conf.d/original \
+		etc/resolvconf/resolv.conf.d/tail ; do
+		echo "nameserver $NAMESERVER" > build_squash/$f  
+	done
 fi
 
 # Verzeichnisse mounten:
@@ -134,6 +157,14 @@ done
 rm -f build_iso/casper/filesystem.squashfs || exit 1
 echo '---> Baue SquashFS...'
 mksquashfs build_squash build_iso/casper/filesystem.squashfs || exit 1 
+
+# Kein ISO?
+
+if [ "0${NOISO}" -gt 0 ] ; then
+	echo '---> Baue auf ausdrücklichen Wunsch kein neues ISO.'
+	echo '---> Fertig.'
+	exit 0
+fi
 
 # Zeit, das ISO aufzubauen...
 echo '---> Baue ISO...'
