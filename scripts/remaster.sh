@@ -49,11 +49,11 @@ if [ -z "$2" ] ; then
 fi
 
 
-for c in xorriso rsync ; do
+for c in xorriso rsync mksquashfs ; do
 	if which $c ; then
 		echo '---> Befehl '${c}' gefunden...'
 	else
-		echo '***> Befehl '${c}' nicht gefunden!'
+		echo '***> Befehl '${c}' nicht gefunden! Bitte nachinstallieren und erneut versuchen...'
 		exit 1
 	fi
 done 
