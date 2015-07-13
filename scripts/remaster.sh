@@ -10,6 +10,10 @@
 #
 #	NOISO=1 NAMESERVER=8.8.8.8 remaster.sh pfad/zu/desinfect-alt-2015.iso
 #
+# oder, es soll erst einmal nur entpackt werden:
+#
+#	NOISO=1 NOSQUASH=1 remaster.sh pfad/zu/desinfect-alt-2015.iso 
+#
 # Verzeichnisse - werden verwendet, wenn sie in dem Ordner anwesend sind,
 # in dem dieses Script aufgerufen wird:
 #
@@ -27,6 +31,10 @@
 #	
 #	NOISO=1		- kein ISO bauen, wenn build_iso direkt für PXE-Boot
 #			  bereitgestellt werden soll
+#	
+#	NOSQUASH=1	- kein SquashFS bauen, entpackt alles, man kann dann 
+#			  Änderungen direkt im Chroot vornehmen oder Dateien 
+#			  für die Overlays kopieren
 #
 #	NAMESERVER='8.8.8.8'
 #			- Für PXE-Boot sinnvoll: fixen Nameserver definieren!
@@ -154,12 +162,15 @@ for d in build_squash/tmp build_squash/root build_squash/proc build_squash/dev \
 done
 
 # Zeit, das squashfs neu aufzubauen...
-rm -f build_iso/casper/filesystem.squashfs || exit 1
-echo '---> Baue SquashFS...'
-mksquashfs build_squash build_iso/casper/filesystem.squashfs || exit 1 
+if [ "0${NOSQUASH}" -gt 0 ] ; then
+	echo '---> Baue auf ausdrücklichen Wunsch kein neues SquashFS.'
+else 
+	rm -f build_iso/casper/filesystem.squashfs || exit 1
+	echo '---> Baue SquashFS...'
+	mksquashfs build_squash build_iso/casper/filesystem.squashfs || exit 1 
+fi
 
 # Kein ISO?
-
 if [ "0${NOISO}" -gt 0 ] ; then
 	echo '---> Baue auf ausdrücklichen Wunsch kein neues ISO.'
 	echo '---> Fertig.'
