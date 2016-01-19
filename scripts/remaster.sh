@@ -91,7 +91,7 @@ else
         [ -d overlay_iso ] && rsync -avHP overlay_iso/ build_iso/
 fi
 
-# SquahsFS entpacken
+# SquashFS entpacken
 if [ -d build_squash ] ; then
         echo '===> Ausgabeverzeichnis (SquashFS) existiert, entpacke nicht!'
 else
