@@ -98,7 +98,7 @@ if [ -f "$OUTPUTISO" ] ; then
 	exit 1 
 fi
 
-xorriso -osirrox on -indev "$INPUTISO" -extract / "${TEMPDIR}/build_iso"
+xorriso -osirrox on -indev "$INPUTISO" -extract / "${TEMPDIR}/build_iso" || exit 1 
 rm -f "${TEMPDIR}/build_iso/casper/filesystem.squashfs"
 mksquashfs /cdrom/casper/filesystem.dir "${TEMPDIR}/build_iso/casper/filesystem.squashfs" \
 	-comp xz -wildcards -e 'boot/vmlinuz-*' 'boot/initrd.img-*'
