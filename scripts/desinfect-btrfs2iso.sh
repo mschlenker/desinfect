@@ -103,7 +103,11 @@ if [ -f "$OUTPUTISO" ] ; then
 	exit 1 
 fi
 
-xorriso -osirrox on -indev "$INPUTISO" -extract / "${TEMPDIR}/build_iso" || exit 1 
+mkdir -p "${TEMPDIR}/mount_iso"
+mount -o loop "$INPUTISO" "${TEMPDIR}/mount_iso" || exit 1
+rsync -avHP --exclude=filesystem.squashfs "${TEMPDIR}/mount_iso/" "${TEMPDIR}/build_iso/"
+umount -f "${TEMPDIR}/mount_iso/"
+rmdir "${TEMPDIR}/mount_iso/"
 rm -f "${TEMPDIR}/build_iso/casper/filesystem.squashfs"
 mksquashfs /cdrom/casper/filesystem.dir "${TEMPDIR}/build_iso/casper/filesystem.squashfs" \
 	-comp xz -wildcards -e 'boot/vmlinuz-*' 'boot/initrd.img-*'
