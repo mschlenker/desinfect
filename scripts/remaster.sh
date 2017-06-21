@@ -1,14 +1,27 @@
 #!/bin/bash
 # encoding: utf-8
-# (c) Mattias Schlenker 2015 für Heise
+#
+# (c) Mattias Schlenker 2017, 2016 für Heise
 #     MIT License http://opensource.org/licenses/MIT 
 #
+# Dieses Script muss mit Rootrechten ausgeführt werden! 
+#
+# Das aktuelle Arbeitsverzeichnis muss auf einem ext4- oder btrfs-Volume mit
+# ausreichend freiem Platz liegen. Die Verwendung im RAM (Overlay-Dateisystem)
+# schlägt meist fehl!
+#
+# Lesen Sie auch:
+# http://www.heise.de/ct/ausgabe/2015-18-Eigene-Erweiterungen-und-frische-Signaturen-fuer-das-c-t-Live-System-2767399.html
+#
 # Aufruf:
-#	remaster.sh pfad/zu/desinfect-alt-2015.iso pfad/zu/desinfect-neu-2015.iso
+#	remaster.sh pfad/zu/desinfect-alt-2016.iso pfad/zu/desinfect-neu-2016.iso
+#
+# ...aus einem laufenden Desinfec't:
+#	remaster.sh /isodevices/software/desinfect-2016.iso pfad/zu/desinfect-neu-2016.iso
 #
 # oder, sinnvoll wenn das build_iso per NFS für PXE-Boot exportiert werden soll:
 #
-#	NOISO=1 NAMESERVER=8.8.8.8 remaster.sh pfad/zu/desinfect-alt-2015.iso
+#	NOISO=1 NAMESERVER=8.8.8.8 remaster.sh pfad/zu/desinfect-alt-2016.iso
 #
 # oder, es soll erst einmal nur entpackt werden:
 #
@@ -25,7 +38,6 @@
 #			  (Windows-) Tools genutzt werden
 #	extra_debs 	- zusätzliche Debian-Pakete, die im SquashFS 
 # 			  installiert werden sollen, beispielsweise TrueCrypt
-#			  libbde (BitLocker) oder libvshadow
 #
 # Umgebungsvariablen:
 #	
@@ -42,6 +54,11 @@
 #
 #	BIOS_ONLY=1	- ISO ohne UEFI-Unterstützung bauen
 #
+#	UPDATE_FIRST=1	- apt-get update && apt-get -y dist-upgrade durchführen
+#
+#	APT_GET_INSTALL	- Liste von Paketen, die vom regulären Debian-Server 
+# 			  installiert werden sollen
+#
 # ACHTUNG! Die Installation von Debian-Paketen und die Synchronisierung von 
 # Overlays erfolgt nur beim ersten Entpacken! Falls Änderungen an Overlays 
 # oder Debs vorgenommen werden, die beiden Verzeichnisse "build_squash" und
@@ -51,15 +68,19 @@
 # ist - die Verwendung in einem Cronjob o.ä. ist daher in diesem Fall erst 
 # möglich, nachdem das Script einmal manuell ausgeführt wurde!
 
+comment_lines=69
+
 install_extras=0
 me=` id -u `
 if [ "$me" -gt 0 ] ; then
 	echo '***> Bitte rufen Sie dieses Script mit Root-Rechten auf!'
+	head -n "$comment_lines" "$0"
 	exit 1
 fi
 
 if [ -z "$1" ] ; then
 	echo '***> Bitte Pfad zum Desinfect-Input-ISO als ersten Parameter übergeben!'
+	head -n "$comment_lines" "$0"
 	exit 1 
 fi
 if [ -z "$2" ] ; then
@@ -67,6 +88,7 @@ if [ -z "$2" ] ; then
 	if [ "0${NOISO}" -gt 0 ] ; then
 		echo '***> OK, geht ohne.'
 	else
+		head -n "$comment_lines" "$0"
 		exit 1 
 	fi
 fi
@@ -91,7 +113,7 @@ else
         [ -d overlay_iso ] && rsync -avHP overlay_iso/ build_iso/
 fi
 
-# SquashFS entpacken
+# SquahsFS entpacken
 if [ -d build_squash ] ; then
         echo '===> Ausgabeverzeichnis (SquashFS) existiert, entpacke nicht!'
 else
@@ -102,7 +124,7 @@ else
 	[ -d overlay_squash ] && rsync -avHP overlay_squash/ build_squash/ 
 fi
 
-# Nameserver setzen fals angefordert:
+# Nameserver setzen falls angefordert:
 if [ -n "$NAMESERVER" ] ; then
 	for f in etc/resolv.conf \
 		etc/resolvconf/resolv.conf.d/original \
@@ -116,8 +138,7 @@ mount -t tmpfs tmpfs build_squash/tmp
 mount -t tmpfs tmpfs build_squash/root
 mount --bind /dev build_squash/dev
 mount --bind /proc build_squash/proc
-# Overlays für Kaspersky und BitDefender
-mount --bind build_squash/opt/BitDefender-scanner/var/lib/scan{.orig,} 
+# Overlays für Kaspersky
 mount --bind build_squash/var/kl/bases_rd{.orig,}
 
 if [ "$install_extras" -gt 0 ] ; then
@@ -129,29 +150,92 @@ if [ "$install_extras" -gt 0 ] ; then
 	read nix 
 	umount build_squash/tmp/extra_debs
 fi 
+if [ -n "$APT_GET_INSTALL" -o "$UPDATE_FIRST" -gt 0 ] ; then
+	mv build_squash/etc/apt/sources.list{,.bak}
+	echo 'deb http://localhost/desinfect 2017 main' >> build_squash/etc/apt/sources.list
+	echo 'deb http://de.archive.ubuntu.com/ubuntu xenial main restricted universe multiverse' >> build_squash/etc/apt/sources.list
+	echo 'deb http://security.ubuntu.com/ubuntu xenial-updates main restricted universe multiverse' >> build_squash/etc/apt/sources.list
+	echo 'deb http://security.ubuntu.com/ubuntu xenial-security main restricted universe multiverse' >> build_squash/etc/apt/sources.list
+	chroot build_squash apt-get update
+	if [ "$UPDATE_FIRST" -gt 0 ] ; then
+		chroot build_squash apt-get -y dist-upgrade
+		chroot build_squash update-initramfs -k all -c
+	fi
+	if [ -n "$APT_GET_INSTALL" ] ; then
+		for pkg in $APT_GET_INSTALL ; do
+			chroot build_squash apt-get -y install $pkg 
+		done
+	fi
+	mv build_squash/etc/apt/sources.list{.bak,}
+fi
 
-# Kaspersky aktualisieren
-echo '---> Aktualisiere Kaspersky...'
-echo 'PATH=/usr/lib/kl:$PATH' > build_squash/tmp/kavupdate
-echo 'LD_LIBRARY_PATH=/usr/lib/kl:$LD_LIBRARY_PATH' >> build_squash/tmp/kavupdate
-echo 'KL_PLUGINS_PATH=/usr/lib/kl' >> build_squash/tmp/kavupdate
-echo 'export PATH LD_LIBRARY_PATH KL_PLUGINS_PATH' >> build_squash/tmp/kavupdate
-echo '/usr/lib/kl/kav update' >> build_squash/tmp/kavupdate
-chroot build_squash /bin/bash /tmp/kavupdate
-# Bitdefender aktualisieren
-echo '---> Aktualisiere BitDefender...'
-chroot build_squash bdscan --update
+# Lokale Signaturen verwenden, wenn unter Desinfec't ausgeführt
+if [ -x /opt/desinfect/update_all_signatures.sh ] ; then
+	/opt/desinfect/update_all_signatures.sh
+fi
+
+if [ -d /var/kl/bases_rd ] ; then
+	# Kaspersky aktualisieren
+	echo '---> Aktualisiere Kaspersky...'
+	if mountpoint -q /var/kl/bases_rd ; then
+		rsync -avHP --delete /var/kl/bases_rd/ build_squash/var/kl/bases_rd/
+	else
+		echo 'PATH=/usr/lib/kl:$PATH' > build_squash/tmp/kavupdate
+		echo 'LD_LIBRARY_PATH=/usr/lib/kl:$LD_LIBRARY_PATH' >> build_squash/tmp/kavupdate
+		echo 'KL_PLUGINS_PATH=/usr/lib/kl' >> build_squash/tmp/kavupdate
+		echo 'export PATH LD_LIBRARY_PATH KL_PLUGINS_PATH' >> build_squash/tmp/kavupdate
+		echo '/usr/lib/kl/kav update' >> build_squash/tmp/kavupdate
+		chroot build_squash /bin/bash /tmp/kavupdate
+	fi
+fi
 # Avira aktualisieren
 echo '---> Aktualisiere Avira...'
-chroot build_squash /AntiVirUpdate/avupdate
+if [ -d /AntiVir -a -d /AntiVirUpdate ] ; then
+	rsync -avHP --delete /AntiVir/ build_squash/AntiVir/ 
+else
+	chroot build_squash /AntiVirUpdate/avupdate
+fi
 # ClamAV aktualisieren
 echo '---> Aktualisiere ClamAV...'
-chroot build_squash freshclam
+if [ -d /var/lib/clamav ] ; then
+	rsync -avHP /var/lib/clamav/ build_squash/var/lib/clamav/ 
+	chown -R 200:200 build_squash/var/lib/clamav/ 
+else
+	chroot build_squash freshclam
+fi
+# ESET aktualisieren
+echo '---> Aktualisiere ESET...' 
+if [ -d /var/opt/eset ] ; then 
+	rsync -avHP --delete /var/opt/eset/ build_squash/var/opt/eset/
+else
+	chroot build_squash /etc/init.d/esets start
+	chroot build_squash /opt/eset/esets/sbin/esets_daemon --update
+	echo "Bitte warten Sie ein paar Minuten, prüfen Sie dann, ob unter"
+	echo "/var/opt/eset/esets/lib aktualisierte Signaturen liegen und"
+	echo "drücken Sie dann [ENTER]."
+	read nix 
+	chroot build_squash /etc/init.d/esets stop
+fi
+
+# Sophos aktualisieren
+echo '---> Aktualisiere Sophos...'
+if [ -d /opt/sophos-av ] ; then
+	rsync -avHP /opt/sophos-av/ build_squash/opt/sophos-av/
+fi	
+chroot build_squash /opt/sophos-av/bin/savupdate -v3 
+
+# F-Secure aktualisieren 
+echo '---> Aktualisiere F-Secure'
+if [ -d /opt/f-secure/fssp ] ; then
+	rsync -avHP /opt/f-secure/ build_squash/opt/f-secure/ 
+fi
+( sleep 30 ; chroot build_squash /etc/init.d/fsaua start ) &
+chroot build_squash /opt/f-secure/fssp/bin/dbupdate_lite 
+
 # Obsolete Datei entfernen
 rm -f build_squash/var/lib/clamav/daily.cld
 
 for d in build_squash/tmp build_squash/root build_squash/proc build_squash/dev \
-	build_squash/opt/BitDefender-scanner/var/lib/scan \
 	build_squash/var/kl/bases_rd ; do
 	umount $d
 	retval=$?
@@ -175,6 +259,23 @@ if [ "0${NOISO}" -gt 0 ] ; then
 	echo '---> Baue auf ausdrücklichen Wunsch kein neues ISO.'
 	echo '---> Fertig.'
 	exit 0
+fi
+
+# Existiert ein neueres initramfs?
+ls build_squash/boot/initrd.img-* 
+if [ "$?" -lt 1 ] ; then
+	# Rebuild initramfs again:
+	chroot build_squash update-initramfs -k all -c
+	cp -v `ls build_squash/boot/initrd.img-* | tail -n1 ` build_iso/casper/initrd.lz
+	cp -v `ls build_squash/boot/vmlinuz-* | tail -n1 ` build_iso/casper/vmlinuz
+	rsync -avHP build_squash/usr/share/desinfect-remaster/initramfs-stretch/ build_initramfs/
+	mkdir -p orig_initramfs 
+	( cd orig_initramfs ; gunzip -c ../build_iso/casper/initrd.lz | cpio -i )
+	rsync -avHP orig_initramfs/lib/firmware/ build_initramfs/lib/firmware/
+	moddir=` ls build_squash/lib/modules | tail -n1 ` 
+	rsync -avHP orig_initramfs/lib/modules/${moddir}/ build_initramfs/lib/modules/${moddir}/
+	( cd build_initramfs ; find . | cpio -H newc -o | gzip -c > ../build_iso/casper/initrd.str ) 
+	rm -rf orig_initramfs 
 fi
 
 # Zeit, das ISO aufzubauen...
