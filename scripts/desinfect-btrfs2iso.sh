@@ -24,9 +24,14 @@
 # The output file is written to the desinfDATA partition as 
 # desinfect-2017-from-btrfs.iso
 #
+# If you are running with an updated kernel, make sure the partition 
+# containing the boot files is mounted at /media/desinfSYS or
+# /media/desinfect/desinfSYS - in this case kernel and initramfs will
+# be copied to the new DVD. 
+# 
 # Comments in English since also contained in international license issues.
 
-HELPLINES=28
+HELPLINES=33
 
 me=` id -u `
 if [ "$me" -gt 0 ] ; then
@@ -103,6 +108,14 @@ rm -f "${TEMPDIR}/build_iso/casper/filesystem.squashfs"
 mksquashfs /cdrom/casper/filesystem.dir "${TEMPDIR}/build_iso/casper/filesystem.squashfs" \
 	-comp xz -wildcards -e 'boot/vmlinuz-*' 'boot/initrd.img-*'
 # Copy kernels if boot partition is mounted!
+if mountpoint -q /media/desinfect/desinfSYS || mountpoint -q /media/desinfSYS ; then
+	SRCDIR=/media/desinfSYS
+	mountpoint -q /media/desinfect/desinfSYS && SRCDIR=/media/desinfect/desinfSYS
+	for f in vmlinuz initrd.img initrd.str ; do
+		cp -v ${srcdir}/casper/${f} "${TEMPDIR}/build_iso/casper/"
+	done
+fi
+
 xorriso -as mkisofs -graft-points -c isolinux/boot.cat -b isolinux/isolinux.bin -no-emul-boot \
 	-boot-info-table -boot-load-size 4 -isohybrid-mbr \
 	/cdrom/casper/filesystem.dir/usr/lib/ISOLINUX/isohdpfx.bin \
