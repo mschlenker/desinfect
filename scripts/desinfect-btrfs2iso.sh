@@ -38,7 +38,7 @@
 # 
 # Comments in English since also contained in international license issues.
 
-HELPLINES=33
+HELPLINES=40
 
 me=` id -u `
 if [ "$me" -gt 0 ] ; then
@@ -68,7 +68,14 @@ TEMPDIR="$2"
 OUTDIR=""
 
 if [ -n "$OUTPUT_DIR" ] ; then
-	OUTDIR="$OUTPUT_DIR"
+	if [ -d "$OUTPUT_DIR" ] ; then
+		OUTDIR="$OUTPUT_DIR"
+	else
+		head -n $HELPLINES $0 
+		echo '***> Output directory '"$OUTPUT_DIR"' is missing!'
+		echo ''
+		exit 1 
+	fi
 elif mountpoint -q /media/desinfect/desinfDATA || mountpoint -q /media/desinfDATA ; then
 	echo 'OK, found mountpoint desinfDATA'
 	if mountpoint -q /media/desinfect/desinfDATA ; then
