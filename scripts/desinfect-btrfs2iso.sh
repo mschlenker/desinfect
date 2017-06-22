@@ -28,6 +28,13 @@
 # containing the boot files is mounted at /media/desinfSYS or
 # /media/desinfect/desinfSYS - in this case kernel and initramfs will
 # be copied to the new DVD. 
+#
+# Environment variables:
+#
+# OUTPUT_DIR=/path/to/a/directory
+#	Do not write the output ISO to the FAT partition of the thumb drive
+# CASPER_PATH=/path/to/casper
+#	Specify a different casper directory than /cdrom/casper as source
 # 
 # Comments in English since also contained in international license issues.
 
@@ -60,7 +67,9 @@ fi
 TEMPDIR="$2"
 OUTDIR=""
 
-if mountpoint -q /media/desinfect/desinfDATA || mountpoint -q /media/desinfDATA ; then
+if [ -n "$OUTPUT_DIR" ] ; then
+	OUTDIR="$OUTPUT_DIR"
+elif mountpoint -q /media/desinfect/desinfDATA || mountpoint -q /media/desinfDATA ; then
 	echo 'OK, found mountpoint desinfDATA'
 	if mountpoint -q /media/desinfect/desinfDATA ; then
 		OUTDIR=/media/desinfect/desinfDATA
@@ -103,13 +112,25 @@ if [ -f "$OUTPUTISO" ] ; then
 	exit 1 
 fi
 
+INDIR="/cdrom/casper/filesystem.dir"
+if [ -n "$CASPER_PATH" ] ; then
+	if [ -d "$CASPER_PATH/filesystem.dir" ] ; then
+		INDIR="$CASPER_PATH/filesystem.dir"
+	else
+		head -n $HELPLINES $0 
+		echo '***> Input directory '"$CASPER_PATH/filesystem.dir"' is missing!'
+		echo ''
+		exit 1 
+	fi
+fi
+
 mkdir -p "${TEMPDIR}/mount_iso"
 mount -o loop "$INPUTISO" "${TEMPDIR}/mount_iso" || exit 1
 rsync -avHP --exclude=filesystem.squashfs "${TEMPDIR}/mount_iso/" "${TEMPDIR}/build_iso/"
 umount -f "${TEMPDIR}/mount_iso/"
 rmdir "${TEMPDIR}/mount_iso/"
 rm -f "${TEMPDIR}/build_iso/casper/filesystem.squashfs"
-mksquashfs /cdrom/casper/filesystem.dir "${TEMPDIR}/build_iso/casper/filesystem.squashfs" \
+mksquashfs "$INDIR" "${TEMPDIR}/build_iso/casper/filesystem.squashfs" \
 	-comp xz -wildcards -e 'boot/vmlinuz-*' 'boot/initrd.img-*'
 # Copy kernels if boot partition is mounted!
 if mountpoint -q /media/desinfect/desinfSYS || mountpoint -q /media/desinfSYS ; then
