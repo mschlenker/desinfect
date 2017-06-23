@@ -137,8 +137,15 @@ rsync -avHP --exclude=filesystem.squashfs "${TEMPDIR}/mount_iso/" "${TEMPDIR}/bu
 umount -f "${TEMPDIR}/mount_iso/"
 rmdir "${TEMPDIR}/mount_iso/"
 rm -f "${TEMPDIR}/build_iso/casper/filesystem.squashfs"
+mount --bind /opt/desinfect/signatures/desinfect-signatures/avira "${INDIR}/Avira"
+mount --bind /opt/desinfect/signatures/desinfect-signatures/eset "${INDIR}/var/opt/eset"
+mount --bind /opt/desinfect/signatures/desinfect-signatures/f-secure "${INDIR}/var/opt/f-secure"
+mount --bind /opt/desinfect/signatures/desinfect-signatures/f-secure "${INDIR}/opt/sophos-av"
 mksquashfs "$INDIR" "${TEMPDIR}/build_iso/casper/filesystem.squashfs" \
 	-comp xz -wildcards -e 'boot/vmlinuz-*' 'boot/initrd.img-*'
+for d in Avira var/opt/eset var/opt/f-secure opt/sophos-av ; do
+	umount -f "${INDIR}/${d}"
+done
 # Copy kernels if boot partition is mounted!
 if mountpoint -q /media/desinfect/desinfSYS || mountpoint -q /media/desinfSYS ; then
 	SRCDIR=/media/desinfSYS
